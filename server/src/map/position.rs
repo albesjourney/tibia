@@ -12,7 +12,7 @@ use std::{
  * World position
  * 
  ********************************************************************************/
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Position {
     pub x: u16,
     pub y: u16,
