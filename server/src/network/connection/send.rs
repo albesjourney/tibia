@@ -74,6 +74,7 @@ impl Connection {
         /********************************************************************************
          * 
          * Set equipment (for all players).
+         * This will be replaced later when each player has their own inventory saved in a database.
          * 
          ********************************************************************************/
         // let helmet =        self.send_equipped_item(InventorySlot::Helmet, 0x013D).await?;
@@ -206,8 +207,17 @@ impl Connection {
         let mut buf = Cursor::new(Vec::new());
         buf.write_packet(PacketOut::UserList).await?;
         buf.write_u16_le(0x1010).await?;
+
+        // Write self first.
         buf.write_all(self.player.name.as_bytes()).await?;
         buf.write_u8(b'\n').await?;
+
+        // Write all other online players.
+        for other in &self.other_players {
+            buf.write_all(other.name.as_bytes()).await?;
+            buf.write_u8(b'\n').await?;
+        }
+
         buf.write_u8(0).await?;
         Ok(buf.into_inner())
     }
@@ -263,11 +273,11 @@ impl Connection {
 
         /********************************************************************************
          * 
-         * Add 4 swords to the container.
+         * Add 4 meat to the container.
          * 
          ********************************************************************************/
         for _ in 0..4 {
-            buf.write_u16_le(0x005A).await?;
+            buf.write_u16_le(0x0282).await?;
         }
 
         buf.write_u16_le(0xFFFF).await?;
@@ -351,12 +361,29 @@ impl Connection {
         sender_pos: crate::map::position::Position,
         sender_name: &str,
     ) -> Result<Vec<u8>> {
+        /********************************************************************************
+         * 
+         * Get the sender's position on the map.
+         * 
+         ********************************************************************************/
         let dx = sender_pos.x as i32 - self.player.position.x as i32;
         let dy = sender_pos.y as i32 - self.player.position.y as i32;
 
+
+        /********************************************************************************
+         * 
+         * Get the sender's position on screen.
+         * 
+         ********************************************************************************/
         let screen_x = (8 + dx).clamp(0, 14) as u8;
         let screen_y = (6 + dy).clamp(0, 11) as u8;
 
+
+        /********************************************************************************
+         * 
+         * Print the message on the screen.
+         * 
+         ********************************************************************************/
         let mut buf = Cursor::new(Vec::new());
         buf.write_packet(PacketOut::Chat).await?;
         buf.write_u8(screen_x).await?;
@@ -377,7 +404,7 @@ impl Connection {
 
     /********************************************************************************
      * 
-     * Sends the map view visible to the player.
+     * Renders the map that's visible to the player's viewport.
      * 
      ********************************************************************************/
     pub async fn send_map(
