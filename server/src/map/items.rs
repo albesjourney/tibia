@@ -131,7 +131,6 @@ pub fn item_name(id: u16) -> &'static str {
         45834 => "grass",
         46090 => "grass",
         4618 => "dirt floor",
-        4618 => "grass",
         4627 => "a mill board",
         46346 => "grass",
         46602 => "grass",
