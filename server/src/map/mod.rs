@@ -6,6 +6,7 @@
  ********************************************************************************/
 pub mod position;
 pub mod borders;
+pub mod items;
 
 use crate::player::OutfitColors;
 use anyhow::Result;
