@@ -356,14 +356,136 @@ impl Connection {
     /********************************************************************************
      * 
      * Handles "look at" requests.
-     * Sent when the player clicks left+right mouse buttons and examines an object or creature.
+     * Sent when the player clicks left+right mouse buttons and examines an object or player.
      * 
      ********************************************************************************/
     async fn recv_look_at<R: AsyncRead + Unpin>(&mut self, r: &mut R) -> Result<()> {
-        // To do
         debug_log!("network/connection/receive::recv_look_at -> Received incoming packet for looking at something.");
 
-        let _pos = r.read_position().await?;
+        /********************************************************************************
+         * 
+         * Get screen position.
+         * 
+         ********************************************************************************/
+        let screen_pos = r.read_position().await?;
+
+
+        /********************************************************************************
+         * 
+         * Convert screen coordinates to map coordinates.
+         * 
+        ********************************************************************************/
+        let map_x = self.player.position.x as i32 + (screen_pos.x as i32 - 8);
+        let map_y = self.player.position.y as i32 + (screen_pos.y as i32 - 6);
+        let map_pos = crate::map::position::Position::new(map_x as u16, map_y as u16, self.player.position.z);
+
+
+        /********************************************************************************
+         * 
+         * Format the text based on what the player is looking at.
+         * 
+         ********************************************************************************/
+        let text = if let Some(other) = self.other_players.iter().find(|p| p.position == map_pos) {
+            /********************************************************************************
+             * 
+             * Looking at another player - always takes priority.
+             * 
+             ********************************************************************************/
+            format!(
+                "You see {}. {} is {}.\n[Position: {}, {}, {}]",
+                other.name,
+                match other.gender {
+                    crate::player::Gender::Male   => "He",
+                    crate::player::Gender::Female => "She",
+                },
+                match other.gender {
+                    crate::player::Gender::Male   => "male",
+                    crate::player::Gender::Female => "female",
+                },
+                other.position.x,
+                other.position.y,
+                other.position.z
+            )
+
+        } else if map_pos == self.player.position {
+            /********************************************************************************
+             * 
+             * Looking at yourself.
+             * 
+             ********************************************************************************/
+            format!(
+                "You see yourself. You are {}.\n[Position: {}, {}, {}]",
+                match self.player.gender {
+                    crate::player::Gender::Male   => "male",
+                    crate::player::Gender::Female => "female",
+                },
+                self.player.position.x,
+                self.player.position.y,
+                self.player.position.z
+            )
+
+        } else if let Some(objects) = crate::map::MAP.get().unwrap().get_tile_objects(map_pos) {
+            /********************************************************************************
+             * 
+             * Getting the topmost object on a tile.
+             * 
+             ********************************************************************************/
+            let top = objects.iter().filter(|o| matches!(o,
+                crate::map::TileObject::Item(_)
+            )).next()
+            .or_else(|| objects.first().filter(|o| matches!(o, crate::map::TileObject::Ground(_))));
+
+            match top {
+                /********************************************************************************
+                 * 
+                 * Looking at items.
+                 * 
+                 ********************************************************************************/
+                Some(crate::map::TileObject::Item(id)) => format!(
+                    "You see {}.\n[Item id: {}]\n[Position: {}, {}, {}]",
+                    crate::map::items::item_name(*id),
+                    id,
+                    map_pos.x,
+                    map_pos.y,
+                    map_pos.z
+                ),
+
+                /********************************************************************************
+                 * 
+                 * Looking at ground tiles.
+                 * 
+                 ********************************************************************************/
+                Some(crate::map::TileObject::Ground(id)) => format!(
+                   "You see {}.\n[Item id: {}]\n[Position: {}, {}, {}]",
+                    crate::map::items::item_name(*id),
+                    id,
+                    map_pos.x,
+                    map_pos.y,
+                    map_pos.z
+                ),
+                /********************************************************************************
+                 * 
+                 * Looking at an unknown object.
+                 * 
+                 ********************************************************************************/
+                _ => format!(
+                    "You see an unknown object.\n[Position: {}, {}, {}]",
+                    map_pos.x,
+                    map_pos.y,
+                    map_pos.z
+                ),
+            }
+        } else {
+            format!(
+                "You see nothing.\n[Position: {}, {}, {}]",
+                map_pos.x,
+                map_pos.y,
+                map_pos.z
+            )
+        };
+
+        let msg = self.send_look_message(&text).await?;
+        self.enqueue(msg);
         Ok(())
     }
 
