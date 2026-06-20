@@ -1,6 +1,9 @@
 pub mod message;
 
-use crate::debug_log;
+use crate::{
+    debug_log,
+    player::Player,
+};
 use message::{PlayerToWorld, WorldToPlayer};
 use std::{collections::BTreeMap, sync::Arc};
 use tokio::{
@@ -65,6 +68,7 @@ impl World {
      ********************************************************************************/
     async fn message_loop(world: Arc<RwLock<Self>>) {
         let mut senders: BTreeMap<u32, UnboundedSender<WorldToPlayer>> = BTreeMap::new();
+        let mut players: BTreeMap<u32, Player> = BTreeMap::new();
 
         loop {
             let msg = world.write().await.receiver.recv().await;
@@ -78,11 +82,15 @@ impl World {
                  * 
                  ********************************************************************************/
                 Some(PlayerToWorld::Login(player, sender)) => {
+                    debug_log!("Player {} (id={}) has logged in.", player.name, player.id);
                     // Print the entire Player object (verbose logging)
                     // debug_log!("Player logged in:\n{:#?}", player);
-                    
+
+                    let others: Vec<Player> = players.values().cloned().collect();
+                    let _ = sender.send(WorldToPlayer::PlayerList(others.clone()));
+
+                    players.insert(player.id, player.clone());
                     senders.insert(player.id, sender);
-                    debug_log!("Player {} (id={}) has logged in.", player.name, player.id);
                 }
 
 
@@ -94,8 +102,51 @@ impl World {
                  * 
                  ********************************************************************************/
                 Some(PlayerToWorld::Logout(player)) => {
-                    senders.remove(&player.id);
                     debug_log!("Player {} (id={}) has logged out.", player.name, player.id);
+                    players.remove(&player.id);
+                    senders.remove(&player.id);
+
+
+                    /********************************************************************************
+                     * 
+                     * Tell everyone else remaining in the game to refresh their player list.
+                     * 
+                     ********************************************************************************/
+                    let others: Vec<Player> = players.values().cloned().collect();
+                    for tx in senders.values() {
+                        let _ = tx.send(WorldToPlayer::PlayerList(others.clone()));
+                    }
+                }
+
+
+                /********************************************************************************
+                 * 
+                 * Player walked
+                 * 
+                 * Update the position of players as they move around on the map.
+                 * This broadcasts to all other players on the server that they have walked.
+                 * 
+                 ********************************************************************************/
+                Some(PlayerToWorld::UpdatePosition(player)) => {
+                    players.insert(player.id, player.clone());
+
+                    let others: Vec<Player> = players.values().cloned().collect();
+                    for tx in senders.values() {
+                        let _ = tx.send(WorldToPlayer::PlayerList(others.clone()));
+                    }
+                }
+
+
+                /********************************************************************************
+                 * 
+                 * Player sent a chat message
+                 * 
+                 ********************************************************************************/
+                Some(PlayerToWorld::Chat(pos, chat_type, encoded, name)) => {
+                    let event = WorldToPlayer::Chat(pos, chat_type, encoded, name);
+                    for tx in senders.values() {
+                        let _ = tx.send(event.clone());
+                    }
                 }
 
 
