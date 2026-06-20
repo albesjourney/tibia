@@ -1,5 +1,6 @@
 use super::Connection;
 use crate::{
+    debug_log,
     chat::{encoding, ChatType},
     config::CONFIG,
     io::WriteExt,
@@ -243,7 +244,7 @@ impl Connection {
     /********************************************************************************
      * 
      * Opens the container UI on the client.
-     * For now it always opens a bag and pre-fills it with 5 swords.
+     * For now it always opens a bag and pre-fills it with some items.
      * 
      ********************************************************************************/
     pub async fn send_open_container(&self) -> Result<Vec<u8>> {
@@ -316,7 +317,7 @@ impl Connection {
 
         /********************************************************************************
          * 
-         * Print chat bubble in the middle of the screen grid (x:6, y:8).
+         * Print chat bubble in the middle of the screen grid.
          * 
          ********************************************************************************/
         buf.write_packet(PacketOut::Chat).await?;
@@ -334,17 +335,41 @@ impl Connection {
 
         buf.write_all(&encoded).await?;
         buf.write_u8(0x0000).await?;
+        Ok(buf.into_inner())
+    }
 
-        // Attempt to place chat bubble on player location
-        // let pos = sender.map(|p| p.position).unwrap_or(self.player.position);
-        // buf.write_u8(pos.y as u8).await?;
-        // buf.write_u8(pos.x as u8).await?;
 
-        // Print chat packets
-        // let out = buf.into_inner();
-        // debug_log!("Chat packet bytes: {:02x?}", out);
-        // debug_log!("Chat sender position: {:?}", pos);
-        // Ok(out)
+    /********************************************************************************
+     * 
+     * Chat packet to enable multiplayer communication in the game.
+     * 
+     ********************************************************************************/
+    pub async fn build_chat_packet(
+        &self,
+        chat_type: ChatType,
+        encoded: &[u8],
+        sender_pos: crate::map::position::Position,
+        sender_name: &str,
+    ) -> Result<Vec<u8>> {
+        let dx = sender_pos.x as i32 - self.player.position.x as i32;
+        let dy = sender_pos.y as i32 - self.player.position.y as i32;
+
+        let screen_x = (8 + dx).clamp(0, 14) as u8;
+        let screen_y = (6 + dy).clamp(0, 11) as u8;
+
+        let mut buf = Cursor::new(Vec::new());
+        buf.write_packet(PacketOut::Chat).await?;
+        buf.write_u8(screen_x).await?;
+        buf.write_u8(screen_y).await?;
+        buf.write_u8(chat_type as u8).await?;
+
+        if !sender_name.is_empty() {
+            buf.write_all(sender_name.as_bytes()).await?;
+            buf.write_u8(0x0009).await?;
+        }
+
+        buf.write_all(encoded).await?;
+        buf.write_u8(0x0000).await?;
 
         Ok(buf.into_inner())
     }
@@ -458,6 +483,18 @@ impl Connection {
 
             /********************************************************************************
              * 
+             * Do the same as above, but for other players as well.
+             * 
+             ********************************************************************************/
+            for other in &self.other_players {
+                if other.position == pos {
+                    buf.write_all(&self.build_other_player_creature(other).await?).await?;
+                }
+            }
+
+
+            /********************************************************************************
+             * 
              * Write remaining items (stack position 1+).
              * 
              ********************************************************************************/
@@ -471,6 +508,7 @@ impl Connection {
                     }
                 }
             }
+
         } else if pos == self.player.position {
             /********************************************************************************
              * 
@@ -478,6 +516,18 @@ impl Connection {
              * 
              ********************************************************************************/
             buf.write_all(&self.build_player_creature().await?).await?;
+
+        } else {
+            /********************************************************************************
+             * 
+             * Draw other players on the tiles.
+             * 
+             ********************************************************************************/
+            for other in &self.other_players {
+                if other.position == pos {
+                    buf.write_all(&self.build_other_player_creature(other).await?).await?;
+                }
+            }
         }
 
         buf.write_u8(0x00FF).await?;
@@ -509,6 +559,32 @@ impl Connection {
 
         buf.write_u8(sprite).await?;
         buf.write_outfit_colors(self.player.outfit).await?;
+        Ok(buf.into_inner())
+    }
+
+
+    /********************************************************************************
+     * 
+     * Draws other players on the map.
+     * 
+     ********************************************************************************/
+    async fn build_other_player_creature(&self, other: &Player) -> Result<Vec<u8>> {
+        let mut buf = Cursor::new(Vec::new());
+
+        /********************************************************************************
+         * 
+         * Draw the correct outfit sprite based on direction.
+         * 
+         ********************************************************************************/
+        let sprite = match other.direction {
+            Direction::North => 0x00FA,
+            Direction::East  => 0x00FB,
+            Direction::South => 0x00FC,
+            Direction::West  => 0x00FD,
+        };
+
+        buf.write_u8(sprite).await?;
+        buf.write_outfit_colors(other.outfit).await?;
         Ok(buf.into_inner())
     }
 
