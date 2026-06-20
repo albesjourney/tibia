@@ -1,3 +1,5 @@
+use crate::chat::ChatType;
+use crate::map::position::Position;
 use crate::player::Player;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -5,7 +7,12 @@ use tokio::sync::mpsc::UnboundedSender;
 pub enum PlayerToWorld {
     Login(Player, UnboundedSender<WorldToPlayer>),
     Logout(Player),
+    UpdatePosition(Player),
+    Chat(Position, ChatType, Vec<u8>, String),
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum WorldToPlayer {}
+#[derive(Clone, Debug)]
+pub enum WorldToPlayer {
+    PlayerList(Vec<Player>),
+    Chat(Position, ChatType, Vec<u8>, String),
+}
