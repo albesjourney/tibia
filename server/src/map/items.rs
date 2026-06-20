@@ -202,3 +202,49 @@ pub fn item_name(id: u16) -> &'static str {
         _ => "unknown",
     }
 }
+
+
+/********************************************************************************
+ * 
+ * Tiles and items with non-walkable flags (used for auto-walking pathfinding).
+ * 
+ ********************************************************************************/
+pub fn is_walkable(id: u16) -> bool {
+    match id {
+        1 => false, // void
+        102 => false, // anvil
+        1069 => false, // cask of beer
+        114 => false, // coal basin
+        1325 => false, // barrel
+        14 => false, // water
+        1556 => false, // brick wall
+        1581 => false, // trough of water
+        163 => false, // bush
+        1834 => false, // chest of drawers
+        1837 => false, // trough
+        20 => false, // brick wall
+        276 => false, // brick wall
+        285 => false, // fountain
+        29 => false, // fountain
+        300 => false, // bed
+        35 =>  false, // statue
+        4116 => false, // framework wall
+        4372 => false, // framework wall
+        44 => false, // bed
+        4884 => false, // framework wall
+        5140 => false, // framework wall
+        532 => false, // brick wall
+        541 => false, // fountain
+        797 => false, // fountain
+        811 => false, // chest
+        873 => false, // pot
+        928 => false, // willow
+        23566 => false, // border
+        24078 => false, // border
+        25102 => false, // border
+        23054 => false, // border
+        25358 => false, // border
+        25870 => false, // border
+        _ => true,
+    }
+}
