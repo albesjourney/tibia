@@ -395,12 +395,12 @@ impl Connection {
                 "You see {}. {} is {}.\n[Position: {}, {}, {}]",
                 other.name,
                 match other.gender {
-                    crate::player::Gender::Male   => "He",
                     crate::player::Gender::Female => "She",
+                    _ => "He",
                 },
                 match other.gender {
-                    crate::player::Gender::Male   => "male",
                     crate::player::Gender::Female => "female",
+                    _ => "male"
                 },
                 other.position.x,
                 other.position.y,
@@ -416,8 +416,8 @@ impl Connection {
             format!(
                 "You see yourself. You are {}.\n[Position: {}, {}, {}]",
                 match self.player.gender {
-                    crate::player::Gender::Male   => "male",
                     crate::player::Gender::Female => "female",
+                    _ => "male"
                 },
                 self.player.position.x,
                 self.player.position.y,
