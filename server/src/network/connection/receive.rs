@@ -81,7 +81,7 @@ impl Connection {
             PacketIn::RequestChangeData => self.recv_request_change_data(r).await?,
             PacketIn::SetData           => self.recv_set_data(r).await?,
             PacketIn::Echo              => { /* No operation */ }
-            PacketIn::Logout            => { /* No operation */ }
+            PacketIn::Logout            => { /* No operation; here we can add a function to save player state later */ }
         }
         Ok(())
     }
@@ -190,7 +190,7 @@ impl Connection {
         match msg.chars().nth(1).try_into() {
             Ok(chat_type) => {
                 let encoded = match chat_type {
-                    ChatType::Yell => crate::chat::encoding::translate_upper(&msg[3..].to_uppercase()),
+                    ChatType::Yell | ChatType::Broadcast => crate::chat::encoding::translate_upper(&msg[3..].to_uppercase()),
                     _              => crate::chat::encoding::translate(&msg[3..]),
                 };
                 self.world_sender.send(crate::world::message::PlayerToWorld::Chat(
@@ -264,12 +264,30 @@ impl Connection {
         let mut email = String::new();
         r.read_string(&mut email, 50).await?;
 
+        /********************************************************************************
+         * 
+         * Store the submitted information on the player.
+         * Next step is to permanently store these in a database. Maybe SQLite will do?
+         * 
+         ********************************************************************************/
         self.player.password = password;
         self.player.outfit = outfit;
         self.player.real_name = real_name;
         self.player.location = location;
         self.player.email = email;
 
+        /********************************************************************************
+         * 
+         * Send the updated player data to the world so that all other players can access it.
+         * 
+         ********************************************************************************/
+        self.world_sender.send(crate::world::message::PlayerToWorld::UpdateInfo(self.player.clone()))?;
+
+        /********************************************************************************
+         * 
+         * Refresh the map. Outfit changes require a refresh.
+         * 
+         ********************************************************************************/
         let pos = self.player.position;
         let msg = self.send_map(pos, 18, 14).await?;
         self.enqueue(msg);
@@ -301,7 +319,19 @@ impl Connection {
 
         let mut name = String::new();
         r.read_string_to_end(&mut name).await?;
-        let msg = self.send_user_info(&self.player).await?;
+
+        /********************************************************************************
+         * 
+         * Find the requested player - check self first, then other players.
+         * 
+         ********************************************************************************/
+        let player = if self.player.name == name {
+            self.player.clone()
+        } else {
+            self.other_players.iter().find(|p| p.name == name).cloned().unwrap_or(self.player.clone())
+        };
+
+        let msg = self.send_user_info(&player).await?;
         self.enqueue(msg);
         Ok(())
     }
