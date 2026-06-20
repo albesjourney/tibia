@@ -121,6 +121,16 @@ impl Connection {
 
         /********************************************************************************
          * 
+         * Tell the world that I have walked.
+         * 
+         ********************************************************************************/
+        self.world_sender.send(
+            crate::world::message::PlayerToWorld::UpdatePosition(self.player.clone())
+        )?;
+
+
+        /********************************************************************************
+         * 
          * Refreshes the map
          * In Tibia 1.03 the map is refreshed every time a player walks
          * 
@@ -152,8 +162,13 @@ impl Connection {
         if msg.starts_with('#') {
             self.recv_qualified_chat(&msg).await?;
         } else {
-            let out = self.send_chat(ChatType::Normal, &msg, Some(&self.player.clone())).await?;
-            self.enqueue(out);
+            let encoded = crate::chat::encoding::translate(&msg);
+            self.world_sender.send(crate::world::message::PlayerToWorld::Chat(
+                self.player.position,
+                ChatType::Normal,
+                encoded,
+                self.player.name.clone(),
+            ))?;
         }
         Ok(())
     }
@@ -174,9 +189,16 @@ impl Connection {
 
         match msg.chars().nth(1).try_into() {
             Ok(chat_type) => {
-                let player = self.player.clone();
-                let out = self.send_chat(chat_type, &msg[3..], Some(&player)).await?;
-                self.enqueue(out);
+                let encoded = match chat_type {
+                    ChatType::Yell => crate::chat::encoding::translate_upper(&msg[3..].to_uppercase()),
+                    _              => crate::chat::encoding::translate(&msg[3..]),
+                };
+                self.world_sender.send(crate::world::message::PlayerToWorld::Chat(
+                    self.player.position,
+                    chat_type,
+                    encoded,
+                    self.player.name.clone(),
+                ))?;
             }
             Err(_) => {
                 debug_log!("network/connection/receive::recv_qualified_chat -> Unknown chat qualifier: {:?}", msg.chars().nth(1));
