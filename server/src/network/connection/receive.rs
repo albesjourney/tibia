@@ -345,10 +345,150 @@ impl Connection {
      * 
      ********************************************************************************/
     async fn recv_auto_walk<R: AsyncRead + Unpin>(&mut self, r: &mut R) -> Result<()> {
-        // To do
         debug_log!("network/connection/receive::recv_auto_walk -> Received incoming packet for auto-walking.");
 
-        let _dest = r.read_position().await?;
+        /********************************************************************************
+         * 
+         * Convert screen coordinates to map coordinates.
+         * The client sends the clicked tile as a screen position,
+         * so we offset it relative to the player's map position.
+         * 
+         ********************************************************************************/
+        let screen_pos = r.read_position().await?;
+
+
+        /********************************************************************************
+         * 
+         * Reject destinations outside the visible viewport.
+         * The player sits at screen (8, 6), so valid screen coordinates
+         * are x: 0-14, y: 0-11. Anything outside is invalid.
+         * 
+         ********************************************************************************/
+        if screen_pos.x < 2 || screen_pos.x > 14 || screen_pos.y < 2 || screen_pos.y > 10 {
+            return Ok(());
+        }
+
+        let dest_x = self.player.position.x as i32 + (screen_pos.x as i32 - 8);
+        let dest_y = self.player.position.y as i32 + (screen_pos.y as i32 - 6);
+        let dest = crate::map::position::Position::new(
+            dest_x as u16, dest_y as u16, self.player.position.z
+        );
+
+        let map = crate::map::MAP.get().unwrap();
+
+        use std::collections::{VecDeque, HashMap};
+
+
+        /********************************************************************************
+         * 
+         * BFS (Breadth-First Search) pathfinding.
+         * 
+         * We explore tiles outward from the player's position, tracking which tile we came from
+         * and which direction we moved to get there. This guarantees the shortest walkable path.
+         * 
+         ********************************************************************************/
+        let start = self.player.position;
+        let mut queue: VecDeque<crate::map::position::Position> = VecDeque::new();
+        let mut came_from: HashMap<crate::map::position::Position, (crate::map::position::Position, Direction)> = HashMap::new();
+
+        queue.push_back(start);
+        came_from.insert(start, (start, Direction::South));
+
+        'bfs: while let Some(current) = queue.pop_front() {
+            if current == dest {
+                break 'bfs;
+            }
+
+            for (dir, dx, dy) in &[
+                (Direction::North, 0i32, -1i32),
+                (Direction::East,  1,  0),
+                (Direction::South, 0,  1),
+                (Direction::West, -1,  0),
+            ] {
+                let nx = current.x as i32 + dx;
+                let ny = current.y as i32 + dy;
+                if nx < 0 || ny < 0 { continue; }
+
+                let next = crate::map::position::Position::new(nx as u16, ny as u16, current.z);
+
+
+                /********************************************************************************
+                 * 
+                 * Skip tiles we have already visited.
+                 * 
+                 ********************************************************************************/
+                if came_from.contains_key(&next) { continue; }
+
+
+                /********************************************************************************
+                 * 
+                 * Check if the tile is walkable.
+                 * We skip this check for the destination tile so the player can click on non-walkable
+                 * tiles and still path toward them.
+                 * 
+                 * - Tiles with blocking objects (walls, water, etc) are not walkable.
+                 * - Empty tiles within map bounds are walkable
+                 * - Tiles outside map bounds are not walkable
+                 * 
+                 ********************************************************************************/
+                if next != dest {
+                    /********************************************************************************
+                     * 
+                     * Block tiles occupied by other players.
+                     * 
+                     ********************************************************************************/
+                    if self.other_players.iter().any(|p| p.position == next) {
+                        continue;
+                    }
+                    
+                    let walkable = match map.get_tile_objects(next) {
+                        Some(objects) if !objects.is_empty() => objects.iter().all(|obj| {
+                            let id = match obj {
+                                crate::map::TileObject::Ground(id) => *id,
+                                crate::map::TileObject::Item(id)   => *id,
+                                crate::map::TileObject::Creature(_, _, _) => return false,
+                            };
+                            crate::map::items::is_walkable(id)
+                        }),
+                        Some(_) => true,  // empty tile within bounds = walkable
+                        None => false,    // out of bounds = not walkable
+                    };
+                    if !walkable { continue; }
+                }
+
+                came_from.insert(next, (current, *dir));
+                queue.push_back(next);
+
+
+                /********************************************************************************
+                 * 
+                 * Safety limit to avoid hanging if the destination is unreachable.
+                 * If we have explored 400 tiles without finding the destination,
+                 * we stop and the player will not move.
+                 * 
+                 ********************************************************************************/
+                if came_from.len() > 400 { break 'bfs; }
+            }
+        }
+
+        /********************************************************************************
+         * 
+         * Reconstruct the path by walking backwards from the destination to the start,
+         * following the came_from map. Then reverse it so it goes start -> destination.
+         * 
+         ********************************************************************************/
+        let mut path = Vec::new();
+        if came_from.contains_key(&dest) {
+            let mut current = dest;
+            while current != start {
+                let (prev, dir) = came_from[&current];
+                path.push(dir);
+                current = prev;
+            }
+            path.reverse();
+        }
+
+        self.pending_path = path;
         Ok(())
     }
 
