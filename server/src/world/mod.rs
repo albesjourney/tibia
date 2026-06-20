@@ -3,6 +3,7 @@ pub mod message;
 use crate::{
     debug_log,
     player::Player,
+    chat::ChatType,
 };
 use message::{PlayerToWorld, WorldToPlayer};
 use std::{collections::BTreeMap, sync::Arc};
@@ -86,11 +87,28 @@ impl World {
                     // Print the entire Player object (verbose logging)
                     // debug_log!("Player logged in:\n{:#?}", player);
 
+                    /********************************************************************************
+                     * 
+                     * Send the newly connected player the current list of everyone already online.
+                     * 
+                     ********************************************************************************/
                     let others: Vec<Player> = players.values().cloned().collect();
-                    let _ = sender.send(WorldToPlayer::PlayerList(others.clone()));
-
+                    let _ = sender.send(WorldToPlayer::PlayerList(others));
                     players.insert(player.id, player.clone());
                     senders.insert(player.id, sender);
+
+
+                    /********************************************************************************
+                     * 
+                     * Tell everyone else that someone logged in.
+                     * 
+                     ********************************************************************************/
+                    let all: Vec<Player> = players.values().cloned().collect();
+                    for (id, tx) in &senders {
+                        if *id != player.id {
+                            let _ = tx.send(WorldToPlayer::PlayerList(all.clone()));
+                        }
+                    }
                 }
 
 
@@ -106,10 +124,9 @@ impl World {
                     players.remove(&player.id);
                     senders.remove(&player.id);
 
-
                     /********************************************************************************
                      * 
-                     * Tell everyone else remaining in the game to refresh their player list.
+                     * Refresh the player list for all remaining players.
                      * 
                      ********************************************************************************/
                     let others: Vec<Player> = players.values().cloned().collect();
@@ -124,28 +141,126 @@ impl World {
                  * Player walked
                  * 
                  * Update the position of players as they move around on the map.
-                 * This broadcasts to all other players on the server that they have walked.
+                 * This broadcasts to all players nearby that the player walked.
                  * 
                  ********************************************************************************/
                 Some(PlayerToWorld::UpdatePosition(player)) => {
                     players.insert(player.id, player.clone());
 
-                    let others: Vec<Player> = players.values().cloned().collect();
-                    for tx in senders.values() {
-                        let _ = tx.send(WorldToPlayer::PlayerList(others.clone()));
+                    let all: Vec<Player> = players.values().cloned().collect();
+
+                    for (id, tx) in &senders {
+                        if let Some(viewer) = players.get(id) {
+                            let dx = (viewer.position.x as i32 - player.position.x as i32).abs();
+                            let dy = (viewer.position.y as i32 - player.position.y as i32).abs();
+                            if dx <= 18 && dy <= 14 {
+                                let _ = tx.send(WorldToPlayer::PlayerList(all.clone()));
+                            }
+                        }
                     }
                 }
 
 
                 /********************************************************************************
                  * 
-                 * Player sent a chat message
+                 * Process chat messages.
+                 * This determines who receives the message and what they see, based on the chat type
+                 * and distance to the sender.
                  * 
                  ********************************************************************************/
                 Some(PlayerToWorld::Chat(pos, chat_type, encoded, name)) => {
-                    let event = WorldToPlayer::Chat(pos, chat_type, encoded, name);
+                    for (id, tx) in &senders {
+                        if let Some(viewer) = players.get(id) {
+                            /********************************************************************************
+                             * 
+                             * Get the viewer's position on the map.
+                             * 
+                             ********************************************************************************/
+                            let dx = (viewer.position.x as i32 - pos.x as i32).abs();
+                            let dy = (viewer.position.y as i32 - pos.y as i32).abs();
+
+                            match chat_type {
+                                /********************************************************************************
+                                 * 
+                                 * Normal chat message - only visible if the sender is on screen (within viewport).
+                                 * 
+                                 ********************************************************************************/
+                                ChatType::Normal => {
+                                    if dx <= 14 && dy <= 11 {
+                                        let _ = tx.send(WorldToPlayer::Chat(pos, chat_type, encoded.clone(), name.clone()));
+                                    }
+                                }
+
+
+                                /********************************************************************************
+                                 * 
+                                 * Whisper - Only visible to players within 2 squares. Players further away see "pspsps".
+                                 * 
+                                 ********************************************************************************/
+                                ChatType::Whisper => {
+                                    if dx <= 2 && dy <= 2 {
+                                        let _ = tx.send(WorldToPlayer::Chat(pos, chat_type, encoded.clone(), name.clone()));
+                                    } else if dx <= 14 && dy <= 11 {
+                                        let pspsps = crate::chat::encoding::translate("pspsps");
+                                        let _ = tx.send(WorldToPlayer::Chat(pos, chat_type, pspsps, name.clone()));
+                                    }
+                                }
+
+
+                                /********************************************************************************
+                                 * 
+                                 * Yelling - Audible up to 32 squares away for all players.
+                                 * 
+                                 ********************************************************************************/
+                                ChatType::Yell => {
+                                    if dx <= 32 && dy <= 32 {
+                                        let _ = tx.send(WorldToPlayer::Chat(pos, chat_type, encoded.clone(), name.clone()));
+                                    }
+                                }
+
+
+                                /********************************************************************************
+                                 * 
+                                 * Broadcast - Everyone on the server can see this.
+                                 * 
+                                 ********************************************************************************/
+                                ChatType::Broadcast => {
+                                    let _ = tx.send(WorldToPlayer::Chat(pos, chat_type, encoded.clone(), name.clone()));
+                                }
+
+
+                                /********************************************************************************
+                                 * 
+                                 * Looking - Only the sender sees these, handled client-side.
+                                 * 
+                                 ********************************************************************************/
+                                ChatType::Look => {
+                                    // if *id == players.iter().find(|(_, p)| p.name == name).map(|(id, _)| *id).unwrap_or(0) {
+                                    //     let _ = tx.send(WorldToPlayer::Chat(pos, chat_type, encoded.clone(), name.clone()));
+                                    // }
+
+                                    if let Some(sender_id) = players.iter().find(|(_, p)| p.name == name).map(|(id, _)| *id) {
+                                        if *id == sender_id {
+                                            let _ = tx.send(WorldToPlayer::Chat(pos, chat_type, encoded.clone(), name.clone()));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+
+                /********************************************************************************
+                 * 
+                 * Player updated their information (name, location, email, etc).
+                 * 
+                 ********************************************************************************/
+                Some(PlayerToWorld::UpdateInfo(player)) => {
+                    players.insert(player.id, player.clone());
+                    let all: Vec<Player> = players.values().cloned().collect();
                     for tx in senders.values() {
-                        let _ = tx.send(event.clone());
+                        let _ = tx.send(WorldToPlayer::PlayerList(all.clone()));
                     }
                 }
 
