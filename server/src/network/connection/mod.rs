@@ -29,6 +29,7 @@ pub struct Connection {
     message_queue:  SegQueue<Vec<u8>>,
     world_sender:   UnboundedSender<PlayerToWorld>,
     world_receiver: UnboundedReceiver<WorldToPlayer>,
+    other_players:  Vec<Player>,
 }
 
 impl Connection {
@@ -49,6 +50,7 @@ impl Connection {
             message_queue: SegQueue::new(),
             world_sender,
             world_receiver,
+            other_players: Vec::new(),
         }
     }
 
@@ -93,10 +95,6 @@ impl Connection {
                             game_sender
                         ))?;
 
-                        // Log that a player has logged in
-                        // This has moved to "src/world/mod.rs" instead
-                        // debug_log!("Player {} (id={}) has logged in.", player.name, player.id);
-
                         let mut conn = Connection::new(
                             stream, 
                             player, 
@@ -129,10 +127,6 @@ impl Connection {
                             player.clone(), 
                             game_sender
                         ))?;
-
-                        // Log that a player has logged in
-                        // This has moved to "src/world/mod.rs" instead
-                        // debug_log!("Player {} (id={}) has logged in.", player.name, player.id);
 
                         let mut conn = Connection::new(
                             stream, 
@@ -180,6 +174,28 @@ impl Connection {
         loop {
             /********************************************************************************
              * 
+             * Check for messages from the world.
+             * 
+             ********************************************************************************/
+            while let Ok(msg) = self.world_receiver.try_recv() {
+                match msg {
+                    crate::world::message::WorldToPlayer::PlayerList(players) => {
+                        self.other_players = players.into_iter().filter(|p| p.id != self.player.id).collect();
+                        let pos = self.player.position;
+                        let map = self.send_map(pos, 18, 14).await?;
+                        self.enqueue(map);
+                    }
+
+                    crate::world::message::WorldToPlayer::Chat(sender_pos, chat_type, encoded, sender_name) => {
+                        let pkt = self.build_chat_packet(chat_type, &encoded, sender_pos, &sender_name).await?;
+                        self.enqueue(pkt);
+                    }
+                }
+            }
+            
+            
+            /********************************************************************************
+             * 
              * Receive incoming packets.
              * 
              ********************************************************************************/
@@ -209,9 +225,6 @@ impl Connection {
                 ********************************************************************************/
                 Ok(Err(e))
                 if e.kind() == std::io::ErrorKind::UnexpectedEof || e.kind() == std::io::ErrorKind::ConnectionReset => {
-                    // Log that a player has logged out
-                    // This has moved to "src/world/mod.rs" instead
-                    // debug_log!("Player {} (id={}) has logged out.", self.player.name, self.player.id);
                     break;
                 }
 
@@ -241,9 +254,7 @@ impl Connection {
          * It removes the player from the world's active player list.
          * 
          ********************************************************************************/
-        self.world_sender.send(PlayerToWorld::Logout(
-            self.player.clone()
-        ))?;
+        self.world_sender.send(PlayerToWorld::Logout(self.player.clone()))?;
         Ok(())
     }
 }
