@@ -7,6 +7,7 @@ use tokio::sync::mpsc::UnboundedSender;
 pub enum PlayerToWorld {
     Login(Player, UnboundedSender<WorldToPlayer>),
     Logout(Player),
+    UpdateInfo(Player),
     UpdatePosition(Player),
     Chat(Position, ChatType, Vec<u8>, String),
 }
