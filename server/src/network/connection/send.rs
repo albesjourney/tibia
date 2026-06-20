@@ -423,6 +423,25 @@ impl Connection {
 
     /********************************************************************************
      * 
+     * Handles "look" messages.
+     * This type of message is displayed at the center of screen.
+     * 
+     ********************************************************************************/
+    pub async fn send_look_message(&self, text: &str) -> Result<Vec<u8>> {
+        let encoded = crate::chat::encoding::translate(text);
+        let mut buf = Cursor::new(Vec::new());
+        buf.write_packet(PacketOut::Chat).await?;
+        buf.write_u8(8).await?;
+        buf.write_u8(7).await?;
+        buf.write_u8(ChatType::Look as u8).await?;
+        buf.write_all(&encoded).await?;
+        buf.write_u8(0x00).await?;
+        Ok(buf.into_inner())
+    }
+
+
+    /********************************************************************************
+     * 
      * Builds the raw tile payload for the requested map view.
      * 
      ********************************************************************************/
