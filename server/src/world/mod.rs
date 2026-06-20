@@ -186,7 +186,7 @@ impl World {
                                  * 
                                  ********************************************************************************/
                                 ChatType::Normal => {
-                                    if dx <= 14 && dy <= 11 {
+                                    if dx <= 6 && dy <= 4 {
                                         let _ = tx.send(WorldToPlayer::Chat(pos, chat_type, encoded.clone(), name.clone()));
                                     }
                                 }
