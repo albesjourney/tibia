@@ -1,6 +1,5 @@
 use super::Connection;
 use crate::{
-    debug_log,
     chat::{encoding, ChatType},
     config::CONFIG,
     io::WriteExt,
