@@ -5,7 +5,7 @@ use crate::{
     debug_log,
     io::ReadExt,
     map::MAP,
-    player::Player,
+    player::{Direction, Player},
     world::message::{PlayerToWorld, WorldToPlayer},
 };
 use anyhow::Result;
@@ -30,6 +30,7 @@ pub struct Connection {
     world_sender:   UnboundedSender<PlayerToWorld>,
     world_receiver: UnboundedReceiver<WorldToPlayer>,
     other_players:  Vec<Player>,
+    pending_path:   Vec<Direction>,
 }
 
 impl Connection {
@@ -51,6 +52,7 @@ impl Connection {
             world_sender,
             world_receiver,
             other_players: Vec::new(),
+            pending_path: Vec::new(),
         }
     }
 
@@ -312,6 +314,24 @@ impl Connection {
              * 
              ********************************************************************************/
             self.process_world_messages().await?;
+
+
+            /********************************************************************************
+             * 
+             * Process one auto-walk step per loop iteration.
+             * 
+             ********************************************************************************/
+            if !self.pending_path.is_empty() {
+                let direction = self.pending_path.remove(0);
+                self.player.direction = direction;
+                self.player.position = self.player.position + direction;
+                let new_pos = self.player.position;
+                self.world_sender.send(crate::world::message::PlayerToWorld::UpdatePosition(self.player.clone()))?;
+                let map = self.send_map(new_pos, 18, 14).await?;
+                self.enqueue(map);
+                self.flush().await?;
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
             
             
             /********************************************************************************
