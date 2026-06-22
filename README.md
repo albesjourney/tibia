@@ -29,7 +29,7 @@ You can also use something like [winevdm](https://github.com/otya128/winevdm) to
 The game server is written in the Rust programming language. In order to run it and modify it to your liking, you will need to [install Rust](https://rust-lang.org/tools/install/) on your computer. Once you have done that, it's a straightforward process to start the game server. See instructions below.
 
 ### Remere's Map Editor
-In case you want to edit the map on the server, I recommend using [Remere's Map Editor](https://github.com/opentibiabr/remeres-map-editor) (also known as "RME"). This server's map was built using it, with [Tibia 8.60](https://mega.nz/#!WfA1kKwT!oH9hLUQEafAtWtzJJrd3gnn2TN383qpqQfrp7qqLbC0) graphics, which was later converted (see information below).
+In case you want to edit the map on the server, I recommend using [Remere's Map Editor](https://github.com/opentibiabr/remeres-map-editor) (also known as "RME"). This server's map was built using it, with [Tibia 8.60](https://otservlist.org/download) graphics, which was later converted (see information below).
 
 #### Node.js
 If you used RME to build the map file in OTBM format ("**map.otbm**"), you will need to convert the map to JSON ("**map.json**") because that's the format this server uses. This repository includes a Node.js script which converts the map for you - which means you will have to install [Node.js](https://nodejs.org/en) if you plan on using the map converter.
