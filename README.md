@@ -1,88 +1,98 @@
-# Albe's Journey (game server for Tibia 1.03)
-This project (Albe's Journey) is a collection of tools to run, and play, on a Tibia 1.03 server. Here you will find the Tibia 1.03 game client, a server, sprite images, a DAT extractor, and a map converter to make it easy to edit the game world. It also includes instructions on how to get Windows 95.
+# Albe's Journey - A game server for Tibia version 1.03
+Tibia is a MMORPG developed by CipSoft GmbH. The game officially launched on Jan 07 1997. Just a couple of days later, on Jan 10 1997, the very first player in Tibia entered the game using the character name **Albe** - hence the name of this project; **Albe's Journey**.
 
-#### Credits
-This project was made only possible by the efforts of enthusiastic Tibia players who share a passion for the oldest versions of the game. It takes you back almost 30 years until the beginnings of 1997. It is estimated that less than 50 players in the entire world has played Tibia 1.03 - until now.
+On Feb 08 1997, version alpha 1.03 of the game was released. It is the earliest preserved version of the game that can be [found on the Internet Archive](https://web.archive.org/web/19970513122646/http://www-wi.uni-regensburg.de/~vos19618/tibia/e_download.html). And because of that, we have managed to reverse engineer the game client's packet structure and built a functioning server that can communicate with it.
 
-Back in 2001, a guy nicknamed Snyder created the world's first Tibia server emulator and open sourced it - his server later went on to inspire what we today call Open Tibia. About a decade after Snyder, another programmer called Jopirop created the "TOS Server" which was an updated version of Snyder's implementation of an old game server (targeting Tibia 6.4). Fast forward to 2022, another programmer nicknamed Rsribeiro released a new version for the server - targeting multiple protocols from Tibia 3.0 onwards. And today, in 2026, Albe's Journey is released. A game server for Tibia 1.03 - which is the earliest version of the game we have managed to get our hands on. Also a big thanks to jo3bingham for extracting the sprites!
+This repository is a collection of tools and information neccessary in order to play that version of the game. Here you will not only find the game server, but also the game client, sprite images, item data, and a map converter from OTBM format (most commonly used within the Open Tibia community).
 
-Albe was the character name of the first Tibia player, who entered the game on January 10, 1997.
+## Credits
+- **Snyder** - In 2001 he released his [Tibia server emulator](https://web.archive.org/web/20011220184436/http://members.fortunecity.com/snyder8). It made it possible to play Tibia on a private server for the first time in history. His reverse engineering of the game later helped develop the first Open Tibia server. His server emulator has since inspired many people, and one can still learn from his efforts until this day.
+- **Jopirop** - In 2010 he released [TOS Server](https://sourceforge.net/projects/tosserver/), a Tibia Old School server targeting the Tibia 6.4 protocol. It was an improvement of Snyder's server emulator and included even more information about the packet structure in the earlier versions of Tibia.
+- **rsribeiro** - In 2022 he released [legbone](https://github.com/rsribeiro/legbone), a Tibia game server targeting protocol 3.0 onwards, with limited support for Tibia 1.03. It was a modern implementation inspired by Jopirop's release, as well as [Open Tibia version 0.1.0](https://sourceforge.net/projects/opentibia/), and also included his own reverse engineering.
+- **jo3bingham** - He released [a tool](https://www.reddit.com/r/TibiaMMO/comments/hwk2cx/tibia_103_sprites/) that extracted the sprite images used in Tibia 1.03.
+- **Inconcessus** - He made [a converter](https://github.com/Inconcessus/OTBM2JSON) for the Open Tibia map format OTBM to JSON - which this server uses.
+- **Karr Chaos** - He's been documenting the earliest versions of the game [on his website](https://nightmareknights.com/historyframes/framesalpha12.html) and has preserved a lot of useful information about the game's features, which helped during the reverse engineering process.
 
-Tibia 1.03 is so different from what we're used to. The concept of NPCs, health/mana, skills, etc. did not exist. This is truly a barebones version of the game. If you expect to PK and kill monsters, look elsewhere!
+This project would not have been possible without the efforts of those mentioned above. So I would like to personally thank them for their tremendous efforts in bringing back life to the earliest versions of Tibia.
 
-## We need your help!
-Up until a week ago, I had never written a line in Rust. Nor had I ever worked on anything low-level (packets). I'm a web developer at heart, I mostly do JavaScript and C# stuff. But that is not even my day-job anymore. But I did manage to solve a lot, and I learned a ton. But your help is neccessary!
+## Prerequisites
+Listed below are the things you need to setup on your computer before you're able to play on this server.
 
-I've managed to solve a lot of broken and missing features in the past week. But there are still some key things missing. So if you're interested and know programming - your help would be appreciated. I've tried to include as much information as possible by commenting the source code.
+### Windows 95
+In order to play Tibia 1.03, you will need a supported operating system such as Windows 3.1 or Windows 95. The easiest way to get that is to use Felix Rieseberg's [windows95 app](https://github.com/felixrieseberg/windows95) which works on Windows, Linux and macOS. Within minutes you can download Windows 95 and run it as an app. I've personally used it on Linux Mint and it works flawlessly. It also sets up a shared folder between Windows 95 and your main operating system, which makes it easy to move the game client files over.
 
-Things that need to be fixed/implemented:
-- Moving objects
-- Looking at objects/players
-- Using objects (lever)
-- Converting items (making bread)
-- Correct placement of chat bubbles 
-- Correctly opening containers (not only bags, but chests, barrels, drawerrs)
-- Storing players in a database (SQLite might be the best option for easy portability?)
-- A pixel-perfect "BODY.BMP" in the client (equipment background). The "ugly gingerbread man" (as I call him) was hand drawn by me as I was unable to find the original file. But the color tones might be off, and the size/placement.
-___
-### How to run the server
-First of all, in this repository you will find both the client and the server (as well as oher files), which is neccessary to run it. If you're new to Github, simply hover over the green "Code" button and select "Download ZIP" to download the entire repository.
+You can also use something like [winevdm](https://github.com/otya128/winevdm) to run the Tibia 1.03 game client on modern Windows. I've not personally tested it, but I've heard good things about it.
 
-#### Windows 95
-Then you will need to figure out a way to launch the old Tibia 1.03 client. It does not run on modern operating systems, so you will need a virtual machine or something else. I can personally recommend using Windows 95 by downloading it from Felix Rieseberg's Github repository here: https://github.com/felixrieseberg/windows95
-It works on Linux. Windows and macOS and takes 2 minutes to setup.
+### Rust
+The game server is written in the Rust programming language. In order to run it and modify to your liking, you will need to [install Rust](https://rust-lang.org/tools/install/) on your computer. Once you have done that, it's a straightforward process to start the game server. See instructions below.
 
-You can also use winevdm to run Windows 95 on modern Windows installations (such as Windows 10 or Windows 11): https://github.com/otya128/winevdm
+### Remere's Map Editor
+In case you want to change the map on the server, I recommend using [Remere's Map Editor](https://github.com/opentibiabr/remeres-map-editor) (also known as "RME"). This server's map was built using it, with [Tibia 8.60](https://mega.nz/#!WfA1kKwT!oH9hLUQEafAtWtzJJrd3gnn2TN383qpqQfrp7qqLbC0) graphics. 
 
-You can also use Windows 3.1 if you manage to find a virtual machine for that. Personally, I've tested this using the Windows 95 app by Felix Rieseberg, on Linux Mint. It worked flawlessly.
+#### Node.js
+If you used RME to build the map file in OTBM format ("**map.otbm**"), you will need to convert the map to JSON ("**map.json**") because that's the format this server uses. This repository includes a Node.js script which converts the map for you - which means you will have to install [Node.js](https://nodejs.org/en) if you plan on using the map converter.
+**Note:** The script uses the `grep` command after converting the map, in order to clean up the formatting. That means it will currently only work on Linux, unless you modify the map conversion script.
 
-#### Rust
-This server is written in Rust (a programming language). In order to run the server, install Rust by following the instructions on their website - here: https://forge.rust-lang.org/infra/other-installation-methods.html
+## Running the server
+Once you have installed the neccessary softwares (*as mentioned above*) you can get the server up and running within a few seconds.
+If you haven't already, start by downloading this repository so that you get all the neccessary files. You can download the repository by clickin the green button that says "**Code**" and select "**Download ZIP**". Extract it on your desktop so that you have the `tibia-main` directory.
 
-#### Running the server
-You can configure the server a bit inside the "server/server.toml" file - such as enabling or disabling debug messages, setting a Message of the Day, etc.
-
-Once you have installed Rust, open up a terminal window inside the "server" directory. Then run the following:
-
+Then launch a new terminal/command prompt window inside the `tibia-main/server` directory and run the following commands:
 ```
 cargo check
 cargo run
 ```
-The server is now running on your computer.
 
-#### Connecting to the server
-After you have setup Windows 95, you must move your Tibia 1.03 client over there (the entire "client" folder). Then launch the Tibia client and go into "File -> Preferences" and make sure the "Tibia-Server Address" is set to the local IP of your computer.
+The game server is now running and is ready to accept connections from players.
 
-To find your local IP on Windows, open the command prompt and run `ipconfig /all` and find your IP, typically `192.168.1.xxx`. And if you're on Linux, run `ip a` in your terminal. Just make sure to get the local IP address of the machine that is running the server.
+Because this game server is made in Rust using the `rustdoc` syntax, you can also run the following command to automatically generate a documentation page for you.
 
-Then you can either create a new character ("New Game") or enter any name/password ("Journey Onward") and sign in. Enjoy!
-
-#### Map editor
-I built the map by using Remere's Map Editor ("RME") using Tibia 8.60 graphics. If you want to edit the map, you can either do so manually by editing the "map.json" file (inside the "server" directory) and placing Tibia 8.60 item IDs there. Link to RME: https://github.com/opentibiabr/remeres-map-editor
-
-Link to Tibia 8.60 (required to get the Tibia.dat and Tibia.spr files for RME): https://mega.nz/#!WfA1kKwT!oH9hLUQEafAtWtzJJrd3gnn2TN383qpqQfrp7qqLbC0
-
-You will find the map in OTBM format in "map-converter/map.otbm".
-
-If you choose to edit the map using Remere's Map Editor, you will need to convert it from OTBM (OpenTibia format) to JSON using the included "map-converter". That one is a Node.js app, so you will also need to install Node.js.
 ```
-node convert.mjs
+cargo doc
 ```
+
+## Connecting to the server
+Now you will need to launch Windows 95 and move the game client folder (`tibia-main/client`) over there. Then launch the game client and click on `File - Preferences`. In the input field labeled `Tibia-Server Address`, enter the IP address of the computer that's running the server. If you don't know your local IP address, you can use the following commands in a terminal/command prompt on your machine:
+
+```
+Windows -> ipconfig /all
+Linux   -> ip a
+```
+Your local IP address looks something like `192.168.1.xxx`. Leave the port number in the client as default (`7171`) and click `Save`. Now you're ready to login. You can either login using `New Game` and setup your character the way you want, or use `Journey Onward` and enter any character name and password.
+
+## In-game features
+Tibia 1.03 is very limited in terms of features, but there were some. You can find information about it on the [old Tibia website from 1997](https://web.archive.org/web/19970513130635/http://www-wi.uni-regensburg.de/~vos19618/tibia/e_anleitung.html). Spend a minute to familiarize yourself with the game client's built-in menus. And below are some features you can use in the game:
+```
+// Movements and actions
+Right-click                           -> Use an object
+Left-click                            -> Begin auto-walking towards a destination
+Left-and-right click on something     -> Look at an object
+
+// Chat commands
+#W <message>                          -> Whisper a message to nearby players (range: 2 sqm)
+#Y <message>                          -> Yell a message to nearby players (range: 32 sqm)
+#B <message>                          -> Broadcast a message to all players online.
+*<name>* <message>                    -> Send a private message to someone
+@<name>@ <message>                    -> Send a private message to someone
+```
+
+## Changelog
+Listed below you will find the status of the game server.
+- ✅ Packet structure.
+- ✅ Ability to login, create a character and logout.
+- ✅ Change outfit (`Info - Change Data`).
+- ✅ See a list of players online (`Info - Userlist`).
+- ✅ Access information about a player (`Info - Userlist - {player} - Info`).
+- ✅ Send comments (`Info - Comments`).
+- ✅ Render the map, objects, players, outfits (colors, and sprites based on direction),
+- ✅ Ability to walk around, both using arrow keys and left-click.
+- ✅ Looking at players, ground and objects.
+- ✅ Item properties and attributes (moveable, block projectiles, throw range, container).
+- ✅ Equipment (player inventory).
+- ✅ Chatting, as well as different chat modes (`#W, #Y, #B, private messages`).
+- 🛠️ Containers (equipment, and on the map).
+- 🛠️ Moving objects on the map, as well as to/from containers and equipment.
+- ❌ Using objects (using levers, baking bread).
+- ❌ Persistent storage of players (and map?) in a database (SQLite?).
 ___
-### Sprites
-In the "sprites" folder you will find sprite images of all available items in Tibia 1.03. Feel free to check them out if you'd like. These files have nothing to do with the game server, so you can edit or delete them as you wish. It's just an included bonus.
-___
-### DAT files (item IDs in Tibia 1.03)
-Tibia 1.03 does not use a "Tibia.DAT" file, instead it uses a "MUDOBJ.CLI" file - which includes the same stuff, but in a slightly different format. There you can find the item IDs of all items in the game. I've already extracted all the information from the "MUDOBJ.CLI" file (you will find it inside "dat-extractor/tibia103-dat-extracted-data.txt") - or you can extract it by yourself. I included a program in Rust that parses the file.
-
-The file is quite confusing, as you must go back and forth between sprite images to map the item IDs. Luckily, I've already done that for you as well. You will find a complete list of item IDs inside the server!
-
-Go inside the "server/src/map/mod.rs" file using a text editor of choice. At the bottom of the file you will find all item IDs, as well as IDs of all tiles.
-
-Note that I have edited 1 item manually (trough of water). On the map it uses item ID 17751 and is converted to 0x062D.
-
-The Tibia 1.03 game server uses hexadecimal values for item IDs. So for those of you that are used to Open Tibia item IDs (such as 3031 for gold) will be disappointed. Use the item ID list in the map file I mentioned above when you reference items.
-
-___
-
-*Sit tibi Tibia levis!*
+Last updated: 2026-06-22
