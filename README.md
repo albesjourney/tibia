@@ -5,6 +5,8 @@ On Feb 08 1997, version alpha 1.03 of the game was released. It is the earliest 
 
 This repository is a collection of tools and information neccessary in order to play that version of the game. Here you will not only find the game server, but also the game client, sprite images, item data, and a map converter from OTBM format (most commonly used within the Open Tibia community).
 
+**Scroll down to see all information you might need. Including the current status of the server (changelog).**
+
 ## Credits
 - **Snyder** - In 2001 he released his [Tibia server emulator](https://web.archive.org/web/20011220184436/http://members.fortunecity.com/snyder8). It made it possible to play Tibia on a private server for the first time in history. His reverse engineering of the game later helped develop the first Open Tibia server. His server emulator has since inspired many people, and one can still learn from his efforts until this day.
 - **Jopirop** - In 2010 he released [TOS Server](https://sourceforge.net/projects/tosserver/), a Tibia Old School server targeting the Tibia 6.4 protocol. It was an improvement of Snyder's server emulator and included even more information about the packet structure in the earlier versions of Tibia.
