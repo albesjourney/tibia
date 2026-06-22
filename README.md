@@ -26,10 +26,10 @@ In order to play Tibia 1.03, you will need a supported operating system such as 
 You can also use something like [winevdm](https://github.com/otya128/winevdm) to run the Tibia 1.03 game client on modern Windows. I've not personally tested it, but I've heard good things about it.
 
 ### Rust
-The game server is written in the Rust programming language. In order to run it and modify to your liking, you will need to [install Rust](https://rust-lang.org/tools/install/) on your computer. Once you have done that, it's a straightforward process to start the game server. See instructions below.
+The game server is written in the Rust programming language. In order to run it and modify it to your liking, you will need to [install Rust](https://rust-lang.org/tools/install/) on your computer. Once you have done that, it's a straightforward process to start the game server. See instructions below.
 
 ### Remere's Map Editor
-In case you want to change the map on the server, I recommend using [Remere's Map Editor](https://github.com/opentibiabr/remeres-map-editor) (also known as "RME"). This server's map was built using it, with [Tibia 8.60](https://mega.nz/#!WfA1kKwT!oH9hLUQEafAtWtzJJrd3gnn2TN383qpqQfrp7qqLbC0) graphics. 
+In case you want to edit the map on the server, I recommend using [Remere's Map Editor](https://github.com/opentibiabr/remeres-map-editor) (also known as "RME"). This server's map was built using it, with [Tibia 8.60](https://mega.nz/#!WfA1kKwT!oH9hLUQEafAtWtzJJrd3gnn2TN383qpqQfrp7qqLbC0) graphics, which was later converted (see information below).
 
 #### Node.js
 If you used RME to build the map file in OTBM format ("**map.otbm**"), you will need to convert the map to JSON ("**map.json**") because that's the format this server uses. This repository includes a Node.js script which converts the map for you - which means you will have to install [Node.js](https://nodejs.org/en) if you plan on using the map converter.
@@ -37,7 +37,7 @@ If you used RME to build the map file in OTBM format ("**map.otbm**"), you will 
 
 ## Running the server
 Once you have installed the neccessary softwares (*as mentioned above*) you can get the server up and running within a few seconds.
-If you haven't already, start by downloading this repository so that you get all the neccessary files. You can download the repository by clickin the green button that says "**Code**" and select "**Download ZIP**". Extract it on your desktop so that you have the `tibia-main` directory.
+If you haven't already, start by downloading this repository so that you get all the neccessary files. You can download the repository by clicking on the green button that says "**Code**" and select "**Download ZIP**". Extract it to your desktop so that you have a `tibia-main` directory.
 
 Then launch a new terminal/command prompt window inside the `tibia-main/server` directory and run the following commands:
 ```
@@ -47,14 +47,14 @@ cargo run
 
 The game server is now running and is ready to accept connections from players.
 
-Because this game server is made in Rust using the `rustdoc` syntax, you can also run the following command to automatically generate a documentation page for you.
+Because this game server is made in Rust using the `rustdoc` syntax, you can also run the following command to automatically generate a documentation page for your convenience.
 
 ```
 cargo doc
 ```
 
 ## Connecting to the server
-Now you will need to launch Windows 95 and move the game client folder (`tibia-main/client`) over there. Then launch the game client and click on `File - Preferences`. In the input field labeled `Tibia-Server Address`, enter the IP address of the computer that's running the server. If you don't know your local IP address, you can use the following commands in a terminal/command prompt on your machine:
+Now you will need to launch Windows 95 and move the game client folder (`tibia-main/client`) to it. Then launch the game client and click on `File - Preferences`. In the input field labeled `Tibia-Server Address`, enter the IP address of the computer that's running the server. If you don't know your local IP address, you can use the following commands in a terminal/command prompt on your machine:
 
 ```
 Windows -> ipconfig /all
@@ -68,7 +68,7 @@ Tibia 1.03 is very limited in terms of features, but there were some. You can fi
 // Movements and actions
 Right-click                           -> Use an object
 Left-click                            -> Begin auto-walking towards a destination
-Left-and-right click on something     -> Look at an object
+Left-and-right click at the same time -> Look at a tile/object/player
 
 // Chat commands
 #W <message>                          -> Whisper a message to nearby players (range: 2 sqm)
@@ -88,11 +88,11 @@ Listed below you will find the status of the game server.
 - ✅ Send comments (`Info - Comments`).
 - ✅ Render the map, objects, players, outfits (colors, and sprites based on direction),
 - ✅ Ability to walk around, both using arrow keys and left-click.
-- ✅ Looking at players, ground and objects.
+- ✅ Looking at tiles, objects and players.
 - ✅ Item properties and attributes (moveable, block projectiles, throw range, container).
 - ✅ Equipment (player inventory).
 - ✅ Chatting, as well as different chat modes (`#W, #Y, #B, private messages`).
-- 🛠️ Containers (equipment, and on the map).
+- 🛠️ Containers (equipment, and on the map - e.g. barrels, chests).
 - 🛠️ Moving objects on the map, as well as to/from containers and equipment.
 - ❌ Using objects (using levers, baking bread).
 - ❌ Persistent storage of players (and map?) in a database (SQLite?).
