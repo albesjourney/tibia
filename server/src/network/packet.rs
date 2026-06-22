@@ -1,11 +1,13 @@
+//! Packet type enumerations for the Tibia 1.03 network protocol.
+//!
+//! Each enum variant's discriminant is the one-byte (or two-byte for aux packets)
+//! identifier used on the wire. [`PacketOut`] and [`PacketOutAux`] are server->client;
+//! [`PacketIn`] is client->server.
+
 use crate::player::Direction;
 use num_enum::TryFromPrimitive;
 
-/********************************************************************************
- * 
- * Outgoing packets (server -> client)
- * 
- ********************************************************************************/
+/// Top-level outgoing packet identifiers (server -> client).
 #[repr(u16)]
 #[derive(Debug, Copy, Clone, TryFromPrimitive)]
 pub enum PacketOut {
@@ -32,6 +34,7 @@ pub enum PacketOut {
     Echo            = 0x00C8,
 }
 
+/// Converts a [`Direction`] into the corresponding movement packet.
 impl From<Direction> for PacketOut {
     fn from(dir: Direction) -> Self {
         match dir {
@@ -43,12 +46,7 @@ impl From<Direction> for PacketOut {
     }
 }
 
-
-/********************************************************************************
- * 
- * Embedded map packets
- * 
- ********************************************************************************/
+/// Auxiliary packet identifiers embedded within map packets (server -> client).
 #[repr(u16)]
 #[derive(Debug, Copy, Clone, TryFromPrimitive)]
 pub enum PacketOutAux {
@@ -56,12 +54,7 @@ pub enum PacketOutAux {
     Character       = 0x00FB,
 }
 
-
-/********************************************************************************
- * 
- * Incoming packets (client -> server)
- * 
- ********************************************************************************/
+/// Incoming packet identifiers (client -> server).
 #[repr(u16)]
 #[derive(Debug, Copy, Clone, TryFromPrimitive)]
 pub enum PacketIn {
