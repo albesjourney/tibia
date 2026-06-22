@@ -12,27 +12,21 @@ use std::io::Cursor;
 use tokio::io::AsyncWriteExt;
 
 impl Connection {
-    /********************************************************************************
-     * 
-     * Stores outgoing packets in a queue.
-     * flush() will later add the length prefix and send everything over the socket.
-     * 
-     ********************************************************************************/
+    /// Pushes a packet payload onto the outgoing queue.
+    ///
+    /// Empty payloads are silently dropped. [`flush`](Connection::flush) drains the
+    /// queue, prepends the length header, and writes everything to the socket.
     pub fn enqueue(&self, msg: Vec<u8>) {
         if !msg.is_empty() {
             self.message_queue.push(msg);
         }
     }
 
-
-    /********************************************************************************
-     * 
-     * Sends all queued messages.
-     * Each queued packet is sent as:
-     * - u16 little-endian length (packet_size + 2)
-     * - raw packet bytes
-     * 
-     ********************************************************************************/
+    /// Drains the outgoing queue and writes all pending packets to the socket.
+    ///
+    /// Each packet is framed as:
+    /// - `u16` little-endian length (`payload_len + 2`)
+    /// - raw payload bytes
     pub async fn flush(&mut self) -> Result<()> {
         let mut out = Cursor::new(Vec::new());
 
@@ -50,92 +44,49 @@ impl Connection {
         Ok(())
     }
 
-
-    /********************************************************************************
-     * 
-     * Sends the initial set of packets after the client connects.
-     * This establishes the player's identity and gives the client the first map view.
-     * 
-     ********************************************************************************/
+    /// Sends the sequence of packets that establish the player's session after login.
+    ///
+    /// Order: login confirmation -> equipped items -> initial map view -> status message -> MotD.
+    /// The map is sent here without other players; they are added in `handle_login` once the
+    /// world responds with the initial [`PlayerList`](crate::world::message::WorldToPlayer::PlayerList).
     pub async fn send_login_sequence(&mut self) -> Result<()> {
         let config = CONFIG.get().unwrap();
-        let pos = self.player.position;
+        let pos    = self.player.position;
 
-        /********************************************************************************
-         * 
-         * Login.
-         * 
-         ********************************************************************************/
+        // Login.
         let login = self.send_login().await?;
         self.enqueue(login);
 
+        // Send each equipped item.
+        // TODO: replace with inventory stored in a database.
+        for (slot, item_id) in &self.player.equipment {
+            let slot_enum: InventorySlot = match (*slot).try_into() {
+                Ok(s)  => s,
+                Err(_) => continue,
+            };
+            let msg = self.send_equipped_item(slot_enum, *item_id).await?;
+            self.enqueue(msg);
+        }
 
-        /********************************************************************************
-         * 
-         * Set equipment (for all players).
-         * This will be replaced later when each player has their own inventory saved in a database.
-         * 
-         ********************************************************************************/
-        // let helmet =        self.send_equipped_item(InventorySlot::Helmet, 0x013D).await?;
-        // let necklace =      self.send_equipped_item(InventorySlot::Necklace, 0x013D).await?;
-        let bag =           self.send_equipped_item(InventorySlot::Bag, 0x013D).await?;         // bag
-        // let armor =         self.send_equipped_item(InventorySlot::Armor, 0x013D).await?;
-        let right_hand =    self.send_equipped_item(InventorySlot::RightHand, 0x005A).await?;   // sword
-        let left_hand =     self.send_equipped_item(InventorySlot::LeftHand, 0x0086).await?;    // bread
-        // let legs =          self.send_equipped_item(InventorySlot::Legs, 0x013D).await?;
-        // let boots =         self.send_equipped_item(InventorySlot::Boots, 0x013D).await?;
-        //self.enqueue(helmet);
-        //self.enqueue(necklace);
-        self.enqueue(bag);
-        //self.enqueue(armor);
-        self.enqueue(right_hand);
-        self.enqueue(left_hand);
-        //self.enqueue(legs);
-        //self.enqueue(boots);
-
-        
-        /********************************************************************************
-         * 
-         * Load the map view.
-         * 
-         ********************************************************************************/
+        // Draw the map, send status message and Message of the Day.
         let map = self.send_map(pos, 18, 14).await?;
-        self.enqueue(map);
-
-
-        /********************************************************************************
-         * 
-         * Send status message and Message of the Day.
-         * 
-         ********************************************************************************/
         let status = self.send_status_message(&config.server.status_message).await?;
         let motd = self.send_message_of_the_day(&config.server.message_of_the_day).await?;
+        self.enqueue(map);
         self.enqueue(status);
         self.enqueue(motd);
 
         Ok(())
     }
 
-
-    /********************************************************************************
-     * 
-     * Outgoing packet builder for login.
-     * Produces only the payload; flush() adds the length framing.
-     * 
-     ********************************************************************************/
+    /// Builds a login confirmation packet.
     async fn send_login(&self) -> Result<Vec<u8>> {
         let mut buf = Cursor::new(Vec::new());
         buf.write_packet(PacketOut::Login).await?;
         Ok(buf.into_inner())
     }
 
-
-    /********************************************************************************
-     * 
-     * Sends the server status text show by the client (bottom-left corner).
-     * Payload is a packet header plus a null-terminated string.
-     * 
-     ********************************************************************************/
+    /// Builds a status bar message packet (displayed in the bottom-left of the client).
     pub async fn send_status_message(&self, message: &str) -> Result<Vec<u8>> {
         let mut buf = Cursor::new(Vec::new());
         buf.write_packet(PacketOut::StatusMessage).await?;
@@ -143,13 +94,7 @@ impl Connection {
         Ok(buf.into_inner())
     }
 
-
-    /********************************************************************************
-     * 
-     * Sends the Message of the Day (MotD).
-     * Payload is a packet header plus a null-terminated string.
-     * 
-     ********************************************************************************/
+    /// Builds a Message of the Day packet (displayed upon login).
     pub async fn send_message_of_the_day(&self, message: &str) -> Result<Vec<u8>> {
         let mut buf = Cursor::new(Vec::new());
         buf.write_packet(PacketOut::MessageOfTheDay).await?;
@@ -157,12 +102,7 @@ impl Connection {
         Ok(buf.into_inner())
     }
 
-
-    /********************************************************************************
-     * 
-     * Tells the client which item ID is equipped in a specific inventory slot.
-     * 
-     ********************************************************************************/
+    /// Builds a packet that places `item_id` into the given inventory `slot`.
     pub async fn send_equipped_item(&self, slot: InventorySlot, item_id: u16) -> Result<Vec<u8>> {
         let mut buf = Cursor::new(Vec::new());
         buf.write_packet(PacketOut::EquippedItem).await?;
@@ -171,14 +111,15 @@ impl Connection {
         Ok(buf.into_inner())
     }
 
+    /// Builds a packet that clears the given inventory slot on the client.
+    pub async fn send_remove_equipped(&self, slot: u8) -> Result<Vec<u8>> {
+        let mut buf = Cursor::new(Vec::new());
+        buf.write_packet(PacketOut::RemoveEquipped).await?;
+        buf.write_u8(slot).await?;
+        Ok(buf.into_inner())
+    }
 
-    /********************************************************************************
-     * 
-     * Sends the player's editable character fields.
-     * This is the data window the client uses in "Info -> Change Data".
-     * It populates all input fields with the player's data.
-     * 
-     ********************************************************************************/
+    /// Builds the "Change Data" window packet, pre-filled with the player's current profile.
     pub async fn send_data_window(&self) -> Result<Vec<u8>> {
         let mut buf = Cursor::new(Vec::new());
         buf.write_packet(PacketOut::DataWindow).await?;
@@ -192,26 +133,22 @@ impl Connection {
         buf.write_fixed_string(&self.player.real_name, 50).await?;
         buf.write_fixed_string(&self.player.location, 50).await?;
         buf.write_fixed_string(&self.player.email, 50).await?;
+
         Ok(buf.into_inner())
     }
 
-
-    /********************************************************************************
-     * 
-     * Sends the list of users (Info -> Userlist).
-     * This displays a list of all players online.
-     * 
-     ********************************************************************************/
+    /// Builds the user list packet (Menu: Info -> Userlist).
+    ///
+    /// The requesting player's own name is written first, followed by all other online players,
+    /// each separated by a newline and terminated by a null byte.
     pub async fn send_user_list(&self) -> Result<Vec<u8>> {
         let mut buf = Cursor::new(Vec::new());
         buf.write_packet(PacketOut::UserList).await?;
         buf.write_u16_le(0x1010).await?;
 
-        // Write self first.
         buf.write_all(self.player.name.as_bytes()).await?;
         buf.write_u8(b'\n').await?;
 
-        // Write all other online players.
         for other in &self.other_players {
             buf.write_all(other.name.as_bytes()).await?;
             buf.write_u8(b'\n').await?;
@@ -221,12 +158,7 @@ impl Connection {
         Ok(buf.into_inner())
     }
 
-
-    /********************************************************************************
-     * 
-     * Sends the pop-up window for a selected user (Info -> Userlist -> {selectedPlayer} -> Info).
-     * 
-     ********************************************************************************/
+    /// Builds the player info popup packet (Menu: Info -> Userlist -> {player} -> Info).
     pub async fn send_user_info(&self, player: &Player) -> Result<Vec<u8>> {
         let mut buf = Cursor::new(Vec::new());
 
@@ -234,62 +166,39 @@ impl Connection {
         buf.write_u16_le(0x1010).await?;
 
         buf.write_null_terminated_string(&format!(
-            "Name: {}\n\
-            Real name: {}\n\
-            Location: {}\n\
-            Email: {}\n\
-            Sex: {:?}",
+            "Name: {}\nReal name: {}\nLocation: {}\nEmail: {}\nSex: {:?}",
             player.name,
             player.real_name,
             player.location,
             player.email,
-            player.gender
+            player.gender,
         )).await?;
-
         Ok(buf.into_inner())
     }
 
-
-    /********************************************************************************
-     * 
-     * Opens the container UI on the client.
-     * For now it always opens a bag and pre-fills it with some items.
-     * 
-     ********************************************************************************/
-    pub async fn send_open_container(&self) -> Result<Vec<u8>> {
+    /// Builds an open-container packet for the given container window.
+    ///
+    /// `c.local_id` is the window slot on the client (0-based). Sending the same
+    /// `local_id` again replaces the existing window in-place, which is used both
+    /// when adding items and when navigating into a sub-container. The icon always
+    /// comes from `c.container_id`, never from the items placed inside it.
+    pub async fn send_open_container(&self, c: &crate::player::OpenContainer) -> Result<Vec<u8>> {
         let mut buf = Cursor::new(Vec::new());
         buf.write_packet(PacketOut::OpenContainer).await?;
+        buf.write_u8(c.local_id).await?;
+        buf.write_u16_le(c.container_id).await?;
 
-
-        /********************************************************************************
-         * 
-         * Local ID used to reference the UI container, and the bag item ID.
-         * 
-         ********************************************************************************/
-        buf.write_u8(1).await?;
-        buf.write_u16_le(0x013D).await?;
-
-
-        /********************************************************************************
-         * 
-         * Add 4 meat to the container.
-         * 
-         ********************************************************************************/
-        for _ in 0..4 {
-            buf.write_u16_le(0x0282).await?;
+        for item_id in &c.items {
+            buf.write_u16_le(*item_id).await?;
         }
 
         buf.write_u16_le(0xFFFF).await?;
         Ok(buf.into_inner())
     }
 
-
-    /********************************************************************************
-     * 
-     * Closes a container UI on the client.
-     * "local_id" must match the one used when opening it.
-     * 
-     ********************************************************************************/
+    /// Builds a close-container packet.
+    ///
+    /// `local_id` must match the id used when the container was opened.
     pub async fn send_close_container(&self, local_id: u8) -> Result<Vec<u8>> {
         let mut buf = Cursor::new(Vec::new());
         buf.write_packet(PacketOut::CloseContainer).await?;
@@ -297,62 +206,14 @@ impl Connection {
         Ok(buf.into_inner())
     }
 
-
-    /********************************************************************************
-     * 
-     * Sends a chat message.
-     * It encodes the text based on chat type (yelling will become uppercase).
-     * If a sender is present, it also includes the sender name and a tab separator.
-     * 
-     * Note: the "chat bubble position" is currently hardcoded (grid_x, grid_y) and currently
-     * not using map-based coordinates. This needs to be looked at, to ensure chat bubbles
-     * are created relative to where the player is - and stays there when they walk away.
-     * 
-     ********************************************************************************/
-    pub async fn send_chat(
-        &self,
-        chat_type: ChatType,
-        msg: &str,
-        sender: Option<&Player>,
-    ) -> Result<Vec<u8>> {
-        let encoded = match chat_type {
-            ChatType::Yell => encoding::translate_upper(&msg.to_uppercase()),
-            _              => encoding::translate(msg),
-        };
-
-        let mut buf = Cursor::new(Vec::new());
-        buf.write_packet(PacketOut::Chat).await?;
-
-
-        /********************************************************************************
-         * 
-         * Print chat bubble in the middle of the screen grid.
-         * 
-         ********************************************************************************/
-        buf.write_packet(PacketOut::Chat).await?;
-        let grid_x: u8 = 6;
-        let grid_y: u8 = 8;
-        buf.write_u8(grid_y).await?;
-        buf.write_u8(grid_x).await?;
-        
-        buf.write_u8(chat_type as u8).await?;
-
-        if let Some(player) = sender {
-            buf.write_all(player.name.as_bytes()).await?;
-            buf.write_u8(0x0009).await?; // TAB separator
-        }
-
-        buf.write_all(&encoded).await?;
-        buf.write_u8(0x0000).await?;
-        Ok(buf.into_inner())
-    }
-
-
-    /********************************************************************************
-     * 
-     * Chat packet to enable multiplayer communication in the game.
-     * 
-     ********************************************************************************/
+    /// Builds a chat packet anchored to the sender's screen position.
+    ///
+    /// The sender's map position is converted to a screen-space coordinate relative to
+    /// this player's viewport and clamped to the visible area. The chat bubble will
+    /// appear at that screen position on the client.
+    ///
+    /// TODO: chat bubble position currently snaps to the clamped screen coordinate and does
+    /// not track the sender if they walk away mid-message.
     pub async fn build_chat_packet(
         &self,
         chat_type: ChatType,
@@ -360,29 +221,14 @@ impl Connection {
         sender_pos: crate::map::position::Position,
         sender_name: &str,
     ) -> Result<Vec<u8>> {
-        /********************************************************************************
-         * 
-         * Get the sender's position on the map.
-         * 
-         ********************************************************************************/
+        // Sender's position on the map
         let dx = sender_pos.x as i32 - self.player.position.x as i32;
         let dy = sender_pos.y as i32 - self.player.position.y as i32;
 
-
-        /********************************************************************************
-         * 
-         * Get the sender's position on screen.
-         * 
-         ********************************************************************************/
+        // Sender's position on screen
         let screen_x = (8 + dx).clamp(0, 14) as u8;
         let screen_y = (6 + dy).clamp(0, 11) as u8;
 
-
-        /********************************************************************************
-         * 
-         * Print the message on the screen.
-         * 
-         ********************************************************************************/
         let mut buf = Cursor::new(Vec::new());
         buf.write_packet(PacketOut::Chat).await?;
         buf.write_u8(screen_x).await?;
@@ -390,26 +236,52 @@ impl Connection {
         buf.write_u8(chat_type as u8).await?;
 
         if !sender_name.is_empty() {
-            buf.write_all(sender_name.as_bytes()).await?;
-            buf.write_u8(0x0009).await?;
+            match chat_type {
+                // For broadcasts ("#B") the string "Broadcast from" is prepended to the message.
+                ChatType::Broadcast => {
+                    buf.write_all(b"Broadcast from ").await?;
+                    buf.write_all(sender_name.as_bytes()).await?;
+                    buf.write_u8(0x0009).await?; // TAB separator between name and message
+                }
+
+                // For private messages the string "Message from" is prepended to the message.
+                ChatType::Private => {
+                    buf.write_all(b"Message from ").await?;
+                    buf.write_all(sender_name.as_bytes()).await?;
+                    buf.write_u8(0x0009).await?; // TAB separator between name and message
+                }
+
+                _ => {
+                    buf.write_all(sender_name.as_bytes()).await?;
+                    buf.write_u8(0x0009).await?; // TAB separator between name and message
+                }
+            }
         }
 
+        // Write the message
         buf.write_all(encoded).await?;
         buf.write_u8(0x0000).await?;
-
         Ok(buf.into_inner())
     }
 
+    /// Builds a look message packet, displayed at the centre of the player's screen.
+    pub async fn send_look_message(&self, text: &str) -> Result<Vec<u8>> {
+        let encoded = crate::chat::encoding::translate(text);
+        let mut buf = Cursor::new(Vec::new());
+        buf.write_packet(PacketOut::Chat).await?;
+        buf.write_u8(8).await?;
+        buf.write_u8(7).await?;
+        buf.write_u8(ChatType::Look as u8).await?;
+        buf.write_all(&encoded).await?;
+        buf.write_u8(0x0000).await?;
+        Ok(buf.into_inner())
+    }
 
-    /********************************************************************************
-     * 
-     * Renders the map that's visible to the player's viewport.
-     * 
-     ********************************************************************************/
+    /// Builds the full map packet for a `width * height` viewport centered on `center`.
     pub async fn send_map(
         &self,
         center: crate::map::position::Position,
-        width: u16,
+        width:  u16,
         height: u16,
     ) -> Result<Vec<u8>> {
         let mut buf = Cursor::new(Vec::new());
@@ -419,50 +291,25 @@ impl Connection {
         Ok(buf.into_inner())
     }
 
-
-    /********************************************************************************
-     * 
-     * Handles "look" messages.
-     * This type of message is displayed at the center of screen.
-     * 
-     ********************************************************************************/
-    pub async fn send_look_message(&self, text: &str) -> Result<Vec<u8>> {
-        let encoded = crate::chat::encoding::translate(text);
-        let mut buf = Cursor::new(Vec::new());
-        buf.write_packet(PacketOut::Chat).await?;
-        buf.write_u8(8).await?;
-        buf.write_u8(7).await?;
-        buf.write_u8(ChatType::Look as u8).await?;
-        buf.write_all(&encoded).await?;
-        buf.write_u8(0x00).await?;
-        Ok(buf.into_inner())
-    }
-
-
-    /********************************************************************************
-     * 
-     * Builds the raw tile payload for the requested map view.
-     * 
-     ********************************************************************************/
+    /// Builds the raw tile payload for a `width * height` viewport centered on `center`.
+    ///
+    /// After all tiles are serialized, the last byte is replaced with `0x00FE` and
+    /// a `0x0000` map terminator is appended, as required by the Tibia 1.03 protocol.
     async fn build_map_data(
         &self,
         center: crate::map::position::Position,
-        width: u16,
+        width:  u16,
         height: u16,
     ) -> Result<Vec<u8>> {
         use crate::map::position::Position;
+
         let corner = Position::new(
-            center.x.saturating_sub((width - 1) / 2),
+            center.x.saturating_sub((width  - 1) / 2),
             center.y.saturating_sub((height - 1) / 2),
             center.z,
         );
 
-
-        /********************************************************************************
-         * 
-         * Populate the map view with all tiles and items.
-         * 
-         ********************************************************************************/
+        // Write all tiles on the map (ground, items, etc)
         let mut buf = Cursor::new(Vec::new());
         for x in 0..width {
             for y in 0..height {
@@ -471,12 +318,6 @@ impl Connection {
             }
         }
 
-
-        /********************************************************************************
-         * 
-         * Replace last byte with 0x00FE, then append 0x000 (map terminator).
-         * 
-         ********************************************************************************/
         let mut data = buf.into_inner();
         if let Some(last) = data.last_mut() {
             *last = 0x00FE;
@@ -486,88 +327,50 @@ impl Connection {
         Ok(data)
     }
 
-
-    /********************************************************************************
-     * 
-     * Serializes a single tile on the map.
-     * It writes:
-     * - optional ground (u16) first
-     * - optional player creature if this tile is the player's position
-     * - then remaining objects (items/creatures)
-     * - then two 0x00FF terminator bytes
-     * 
-     ********************************************************************************/
+    /// Serializes a single tile into its wire format.
+    ///
+    /// Write order within a tile:
+    /// 1. Ground object (`u16` id), if present.
+    /// 2. This player's creature data, if standing on this tile.
+    /// 3. Other players' creature data, for any standing on this tile.
+    /// 4. Remaining stack objects (items and non-player creatures).
+    /// 5. Two `0x00FF` terminator bytes.
     async fn build_tile(&self, pos: crate::map::position::Position) -> Result<Vec<u8>> {
         let mut buf = Cursor::new(Vec::new());
 
-        if let Some(objects) = MAP.get().unwrap().get_tile_objects(pos) {
+        if let Some(objects) = MAP.get().unwrap().read().await.get_tile_objects(pos) {
             let mut iter = objects.iter();
 
-            /********************************************************************************
-             * 
-             * Write ground first (if present as the first stack element).
-             * 
-             ********************************************************************************/
-            if let Some(first) = iter.next() {
-                match first {
-                    TileObject::Ground(id) => buf.write_u16_le(*id).await?,
-                    _ => {}
-                }
+            // Ground is always the first element in the stack.
+            if let Some(TileObject::Ground(id)) = iter.next() {
+                buf.write_u16_le(*id).await?;
             }
 
-
-            /********************************************************************************
-             * 
-             * Player receives the next stack position (on top of ground, but under nothing).
-             * 
-             ********************************************************************************/
+            // Player receives the next stack position (on top of ground, but under nothing).
             if pos == self.player.position {
                 buf.write_all(&self.build_player_creature().await?).await?;
             }
 
-
-            /********************************************************************************
-             * 
-             * Do the same as above, but for other players as well.
-             * 
-             ********************************************************************************/
+            // Do the same as above, but for other players as well.
             for other in &self.other_players {
                 if other.position == pos {
                     buf.write_all(&self.build_other_player_creature(other).await?).await?;
                 }
             }
 
-
-            /********************************************************************************
-             * 
-             * Write remaining items (stack position 1+).
-             * 
-             ********************************************************************************/
+            // Write remaining items (stack position 1+).
             for obj in iter {
                 match obj {
                     TileObject::Ground(id) | TileObject::Item(id) => {
                         buf.write_u16_le(*id).await?;
                     }
-                    TileObject::Creature(id, name, outfit) => {
-                        buf.write_all(&self.build_creature(*id, name, *outfit).await?).await?;
-                    }
                 }
             }
-
         } else if pos == self.player.position {
-            /********************************************************************************
-             * 
-             * No map data exists for this tile, but the player is standing there.
-             * 
-             ********************************************************************************/
+            // No map data for this tile, but the player is here - render them anyway.
             buf.write_all(&self.build_player_creature().await?).await?;
-
         } else {
-            /********************************************************************************
-             * 
-             * Draw other players on the tiles.
-             * 
-             ********************************************************************************/
+            // Draw other players on the tiles.
             for other in &self.other_players {
                 if other.position == pos {
                     buf.write_all(&self.build_other_player_creature(other).await?).await?;
@@ -580,21 +383,13 @@ impl Connection {
         Ok(buf.into_inner())
     }
 
-
-    /********************************************************************************
-     * 
-     * Draws the player on the map.
-     * The outfit sprite ID depends on the facing direction.
-     * 
-     ********************************************************************************/
+    /// Builds the creature bytes for this player.
+    ///
+    /// The sprite id encodes the facing direction; outfit colors follow immediately after.
     async fn build_player_creature(&self) -> Result<Vec<u8>> {
         let mut buf = Cursor::new(Vec::new());
 
-        /********************************************************************************
-         * 
-         * Draw the correct outfit sprite based on direction.
-         * 
-         ********************************************************************************/
+        // Write the correct outfit sprite based on direction.
         let sprite = match self.player.direction {
             Direction::North => 0x00FA,
             Direction::East  => 0x00FB,
@@ -607,20 +402,11 @@ impl Connection {
         Ok(buf.into_inner())
     }
 
-
-    /********************************************************************************
-     * 
-     * Draws other players on the map.
-     * 
-     ********************************************************************************/
+    /// Builds the creature bytes for other players.
     async fn build_other_player_creature(&self, other: &Player) -> Result<Vec<u8>> {
         let mut buf = Cursor::new(Vec::new());
 
-        /********************************************************************************
-         * 
-         * Draw the correct outfit sprite based on direction.
-         * 
-         ********************************************************************************/
+        // Write the correct outfit sprite based on direction.
         let sprite = match other.direction {
             Direction::North => 0x00FA,
             Direction::East  => 0x00FB,
@@ -630,25 +416,6 @@ impl Connection {
 
         buf.write_u8(sprite).await?;
         buf.write_outfit_colors(other.outfit).await?;
-        Ok(buf.into_inner())
-    }
-
-
-    /********************************************************************************
-     * 
-     * Builds the creature encoding for other creatures on the map.
-     * Currently it uses a simplified format:
-     * - writes an aux "character" marker
-     * - writes outfit colors
-     * 
-     * Not sure if this is used in Tibia 1.03, need to check.
-     * "_id" and "_name" is accepted, but not in use.
-     * 
-     ********************************************************************************/
-    async fn build_creature(&self, _id: u32, _name: &str, outfit: OutfitColors) -> Result<Vec<u8>> {
-        let mut buf = Cursor::new(Vec::new());
-        buf.write_u8(PacketOutAux::Character as u8).await?;
-        buf.write_outfit_colors(outfit).await?;
         Ok(buf.into_inner())
     }
 }
