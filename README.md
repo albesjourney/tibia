@@ -3,7 +3,7 @@ Tibia is a MMORPG developed by CipSoft GmbH. The game officially launched on Jan
 
 On Feb 08 1997, version alpha 1.03 of the game was released. It is the earliest preserved version of the game that can be [found on the Internet Archive](https://web.archive.org/web/19970513122646/http://www-wi.uni-regensburg.de/~vos19618/tibia/e_download.html). And because of that, we have managed to reverse engineer the game client's packet structure and built a functioning server that can communicate with it.
 
-This repository is a collection of tools and information neccessary in order to play that version of the game. Here you will not only find the game server, but also the game client, sprite images, item data, and a map converter from OTBM format (most commonly used within the Open Tibia community).
+This repository is a collection of tools and information necessary in order to play that version of the game. Here you will not only find the game server, but also the game client, sprite images, item data, and a map converter from OTBM format (most commonly used within the Open Tibia community).
 
 **Scroll down to see all information you might need, including the changelog of the server.**
 
@@ -36,8 +36,8 @@ If you used RME to build the map file in OTBM format ("**map.otbm**"), you will 
 **Note:** The script uses the `grep` command after converting the map, in order to clean up the formatting. That means it will currently only work on Linux, unless you modify the map conversion script.
 
 ## Running the server
-Once you have installed the neccessary softwares (*as mentioned above*) you can get the server up and running within a few seconds.
-If you haven't already, start by downloading this repository so that you get all the neccessary files. You can download the repository by clicking on the green button that says "**Code**" and select "**Download ZIP**". Extract it to your desktop so that you have a `tibia-main` directory.
+Once you have installed the necessary softwares (*as mentioned above*) you can get the server up and running within a few seconds.
+If you haven't already, start by downloading this repository so that you get all the necessary files. You can download the repository by clicking on the green button that says "**Code**" and select "**Download ZIP**". Extract it to your desktop so that you have a `tibia-main` directory.
 
 Then launch a new terminal/command prompt window inside the `tibia-main/server` directory and run the following commands:
 ```
