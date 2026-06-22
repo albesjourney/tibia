@@ -3,7 +3,7 @@ debug_messages = true
 ip = "0.0.0.0"
 port = 7171
 status_message = "Welcome to Tibia!"
-message_of_the_day = "Welcome Adventurer\n\nFrom now you will find the most important news right here at the beginning of your session.\nIf you have any questions, feel free to mail us or visit us in Tibia every Thursday between 6.00 and 7.00 pm cet.\n\nHave fun"
+message_of_the_day = "Welcome Adventurer\n\nChat commands:\n#B <msg> - Broadcast\n#W <msg> - Whisper\n#Y <msg> - Yell\n*Player* <msg> - Private message\n@Player@ <msg> - Private message\n\nYou can look at objects by left-and-right clicking at the same time.\n\nHave fun!"
 
 [world]
 map_file = "map.json"
