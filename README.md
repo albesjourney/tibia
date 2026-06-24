@@ -100,7 +100,7 @@ Because the server uses `rustdoc` syntax, you can also run `cargo doc` to automa
 
 ### Editing the map
 
-The map (`map.otbm`) is in OTBM format and can be edited with [Remere's Map Editor](https://github.com/opentibiabr/remeres-map-editor) using [Tibia 8.60](https://otservlist.org/download) assets. You will find the `map.otbm` file inside the `map-converter` directory of this repository. Please make sure to only add items that existed in Tibia 1.03. You will find the full item list inside `server/src/map/items.rs`.
+The map (`map.otbm`) is in OTBM format and can be edited with [Remere's Map Editor](https://github.com/hampusborgos/rme) using [Tibia 8.60](https://otservlist.org/download) assets. You will find the `map.otbm` file inside the `map-converter` directory of this repository. Please make sure to only add items that existed in Tibia 1.03. You will find the full item list inside `server/src/map/items.rs`.
 
 After editing, you need to convert the map from OTBM to JSON format. This repository includes a Node.js conversion script - install [Node.js](https://nodejs.org/en) and run it from the directory where `map.otbm` is located. Note: the script uses `grep` and currently only works on Linux.
 
