@@ -1,0 +1,49 @@
+name: Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        platform:
+          - os_name: windows
+            os: windows-latest
+            bin: tibia.exe
+          - os_name: linux
+            os: ubuntu-latest
+            bin: tibia
+          - os_name: macos
+            os: macos-latest
+            bin: tibia
+
+    runs-on: ${{ matrix.platform.os }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+      with:
+        sparse-checkout: |
+          .github
+          server
+
+    - name: Run tests
+      working-directory: server
+      run: cargo test --verbose
+
+    - name: Build
+      working-directory: server
+      run: cargo build --release --verbose
+
+    - name: Upload the build artifacts
+      uses: actions/upload-artifact@v7
+      with:
+        name: tibia103-server-${{ matrix.platform.os_name }}
+        path: server/target/release/${{ matrix.platform.bin }}
